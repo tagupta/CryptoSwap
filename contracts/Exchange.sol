@@ -4,11 +4,13 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+error InvalidTokenAddress();
+
 contract Exchange is ERC20 {
     //Connecting exchnage with token address
     address public tokenAddress;
+    address public factoryContract;
 
-    error InvalidTokenAddress();
     error InvalidReserves();
     error InsufficientEth();
     error InsufficientTokens();
@@ -25,6 +27,7 @@ contract Exchange is ERC20 {
     constructor(address _token) ERC20("Zuniswap-V1", "ZUNI-V1") {
         if (_token == address(0)) revert InvalidTokenAddress();
         tokenAddress = _token;
+        factoryContract = msg.sender;
     }
 
     function addLiquidity(uint256 maxtokenAmount)
