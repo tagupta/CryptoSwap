@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract Exchange {
+contract Exchange is ERC20 {
     //Connecting exchnage with token address
     address public tokenAddress;
 
@@ -13,21 +14,37 @@ contract Exchange {
     error InsufficientTokens();
     error IncorrectOutputAmount();
     error EthTransferFailed();
+    error InvalidAmount();
 
-    constructor(address _token) {
+    event RemoveLiquidity(
+        uint256 lptokensBurned,
+        uint256 ethReturned,
+        uint256 tokensReturned
+    );
+
+    constructor(address _token) ERC20("Zuniswap-V1", "ZUNI-V1") {
         if (_token == address(0)) revert InvalidTokenAddress();
         tokenAddress = _token;
     }
 
-    function addLiquidity(uint256 maxtokenAmount) public payable {
+    function addLiquidity(uint256 maxtokenAmount)
+        public
+        payable
+        returns (uint256 liquidity)
+    {
         if (getReserve() == 0) {
             IERC20 token = IERC20(tokenAddress);
+            // When adding initial liquidity, amount of ethers == amount of LP tokens
+            liquidity = address(this).balance;
+            _mint(msg.sender, liquidity);
             token.transferFrom(msg.sender, address(this), maxtokenAmount);
         } else {
             uint256 ethReserve = address(this).balance - msg.value;
             uint256 tokenReserve = getReserve();
             uint256 tokenAmount = (msg.value * tokenReserve) / ethReserve;
             if (maxtokenAmount < tokenAmount) revert InsufficientTokens();
+            liquidity = (msg.value * totalSupply()) / ethReserve;
+            _mint(msg.sender, liquidity);
             IERC20(tokenAddress).transferFrom(
                 msg.sender,
                 address(this),
@@ -58,7 +75,10 @@ contract Exchange {
         uint256 outputReserve
     ) private pure returns (uint256) {
         if (inputReserve <= 0 || outputReserve <= 0) revert InvalidReserves();
-        return (inputAmount * outputReserve) / (inputReserve + inputAmount);
+        uint256 inputAmountWithFee = inputAmount * 99;
+        uint256 numerator = inputAmountWithFee * outputReserve;
+        uint256 denominator = 100 * inputReserve + inputAmountWithFee;
+        return numerator / denominator;
     }
 
     //get output amount for exact ETHs
@@ -108,5 +128,23 @@ contract Exchange {
         if (minEther > ethBought) revert IncorrectOutputAmount();
         (bool result, ) = payable(msg.sender).call{value: ethBought}("");
         if (!result) revert EthTransferFailed();
+    }
+
+    function removeLiquidity(uint256 liquidityBurned)
+        public
+        returns (uint256 ethAmount, uint256 tokenAmount)
+    {
+        if (liquidityBurned <= 0) revert InvalidAmount();
+
+        ethAmount = (address(this).balance * liquidityBurned) / totalSupply();
+        tokenAmount = (getReserve() * liquidityBurned) / totalSupply();
+
+        _burn(msg.sender, liquidityBurned);
+
+        (bool result, ) = payable(msg.sender).call{value: ethAmount}("");
+        if (!result) revert EthTransferFailed();
+
+        IERC20(tokenAddress).transfer(msg.sender, tokenAmount);
+        emit RemoveLiquidity(liquidityBurned, ethAmount, tokenAmount);
     }
 }
