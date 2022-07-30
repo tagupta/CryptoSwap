@@ -6,11 +6,27 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 error InvalidTokenAddress();
 
+interface IFactory {
+    function getExchange(address _tokenAddress) external returns (address);
+}
+
+interface IExchange {
+    function ethToTokenSwap(uint256 minTokens)
+        external
+        payable
+        returns (uint256 tokensBought);
+
+    function ethToTokenTransfer(uint256 minTokens, address recipient)
+        external
+        payable;
+}
+
 contract Exchange is ERC20 {
     //Connecting exchnage with token address
     address public tokenAddress;
     address public factoryContract;
 
+    error InvalidExchangeAddress();
     error InvalidReserves();
     error InsufficientEth();
     error InsufficientTokens();
@@ -106,17 +122,28 @@ contract Exchange is ERC20 {
         return getAmounts(_tokenSold, tokenReserve, address(this).balance);
     }
 
-    //Eth to token swap [Exact Eth, min tokens]
-    function ethToTokenSwap(uint256 minTokens)
-        public
-        payable
-        returns (uint256 tokensBought)
-    {
+    function ethToToken(uint256 minTokens, address recipient) private {
         uint256 inputReserve = address(this).balance - msg.value;
         uint256 outputReserve = getReserve();
-        tokensBought = getAmounts(msg.value, inputReserve, outputReserve);
+        uint256 tokensBought = getAmounts(
+            msg.value,
+            inputReserve,
+            outputReserve
+        );
         if (tokensBought < minTokens) revert IncorrectOutputAmount();
-        IERC20(tokenAddress).transfer(msg.sender, tokensBought);
+        IERC20(tokenAddress).transfer(recipient, tokensBought);
+    }
+
+    //Eth to token swap [Exact Eth, min tokens]
+    function ethToTokenSwap(uint256 minTokens) public payable {
+        ethToToken(minTokens, msg.sender);
+    }
+
+    function ethToTokenTransfer(uint256 minTokens, address recipient)
+        public
+        payable
+    {
+        ethToToken(minTokens, recipient);
     }
 
     //Token to Eth swap [Exact token, min Eth]
@@ -149,5 +176,32 @@ contract Exchange is ERC20 {
 
         IERC20(tokenAddress).transfer(msg.sender, tokenAmount);
         emit RemoveLiquidity(liquidityBurned, ethAmount, tokenAmount);
+    }
+
+    function tokenToTokenSwap(
+        uint256 _tokenSold,
+        uint256 _minTokensBought,
+        address _tokenAddress
+    ) public {
+        address exchangeAddress = IFactory(factoryContract).getExchange(
+            _tokenAddress
+        );
+        if (exchangeAddress == address(0) || exchangeAddress == address(this))
+            revert InvalidExchangeAddress();
+
+        uint256 inputReserve = getReserve();
+        uint256 outputReserve = address(this).balance;
+        uint256 ethBought = getAmounts(_tokenSold, inputReserve, outputReserve);
+
+        IERC20(tokenAddress).transferFrom(
+            msg.sender,
+            address(this),
+            _tokenSold
+        );
+
+        IExchange(exchangeAddress).ethToTokenTransfer{value: ethBought}(
+            _minTokensBought,
+            msg.sender
+        );
     }
 }

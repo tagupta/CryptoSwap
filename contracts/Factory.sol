@@ -7,6 +7,7 @@ contract Factory {
     error ExchangeAlreadyExist();
 
     mapping(address => address) public tokenToExchange;
+    event CreateExchange(address _tokenAddress, address _exchangeAddress);
 
     function createExchange(address _tokenAddress) public returns (address) {
         if (_tokenAddress == address(0)) revert InvalidTokenAddress();
@@ -15,6 +16,7 @@ contract Factory {
 
         Exchange exchange = new Exchange(_tokenAddress);
         tokenToExchange[_tokenAddress] = address(exchange);
+        emit CreateExchange(_tokenAddress, address(exchange));
         return address(exchange);
     }
 

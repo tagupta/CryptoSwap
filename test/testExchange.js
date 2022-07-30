@@ -1,4 +1,3 @@
-const hre = require("hardhat");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
@@ -32,16 +31,6 @@ describe("Exchange", () => {
     it("is deployed", async () => {
         expect(await exchange.deployed()).to.equal(exchange);
     });
-
-    // describe("Add Liquidity", async () => {
-    //     it("should add liquidity", async () => {
-    //         await token.approve(exchange.address, toWei(200));
-    //         await exchange.addLiquidity(toWei(200), { value: toWei(100) });
-
-    //         expect(await getBalance(exchange.address)).to.equal(toWei(100));
-    //         expect(await exchange.getReserve()).to.equal(toWei(200));
-    //     });
-    // });
 
     describe("Get Price", async () => {
         it("should return correct prices", async () => {
@@ -120,12 +109,6 @@ describe("Exchange", () => {
                     console.log("Token Returned: ", fromWei(x.args.tokensReturned));
                 }
             });
-
-            // console.log("LP tokens burned: ", fromWei(receipt.events[0].args.lptokensBurned));
-            // console.log("ETH returned: ", fromWei(receipt.events[0].args.ethReturned))
-            // console.log("Tokens returned: ", fromWei(receipt.events[0].args.tokensReturned))
         })
     })
-
-
 })
